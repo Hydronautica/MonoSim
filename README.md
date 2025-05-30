@@ -31,7 +31,7 @@ monoSim/
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/yourusername/MonoSim.git
+   git clone https://github.com/Hydronautica/MonoSim.git
    ```
 
 2. Add the MonoSim directory and all subdirectories to your MATLAB path:
