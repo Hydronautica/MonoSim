@@ -1,0 +1,16 @@
+site_name: MonoSim
+site_description: Monopile Simulator for Offshore Wind Turbines
+repo_url: https://github.com/yourusername/MonoSim
+
+nav:
+  - Home: index.md
+  - User Guide: user-guide.md
+  - Technical Documentation:
+    - Finite Element Method: finite-element-method.md
+    - Time Integration: time-integration.md
+    - Aerodynamics: aerodynamics.md
+    - Hydrodynamics: hydrodynamics.md
+    - Soil Dynamics: soil-dynamics.md
+  - Contributing: ../CONTRIBUTING.md
+
+theme: readthedocs

@@ -1,16 +1,33 @@
-site_name: MonoSim
-site_description: Monopile Simulator for Offshore Wind Turbines
-repo_url: https://github.com/yourusername/MonoSim
+# Read the Docs configuration file for MkDocs projects
 
-nav:
-  - Home: index.md
-  - User Guide: docs/user-guide.md
-  - Technical Documentation:
-    - Finite Element Method: docs/finite-element-method.md
-    - Time Integration: docs/time-integration.md
-    - Aerodynamics: docs/aerodynamics.md
-    - Hydrodynamics: docs/hydrodynamics.md
-    - Soil Dynamics: docs/soil-dynamics.md
-  - Contributing: CONTRIBUTING.md
+# See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
 
-theme: readthedocs
+
+# Required
+
+version: 2
+
+
+# Set the version of Python and other tools you might need
+
+build:
+
+  os: ubuntu-22.04
+
+  tools:
+
+    python: "3.12"
+
+
+mkdocs:
+
+  configuration: mkdocs.yml
+
+
+# Optionally declare the Python requirements required to build your docs
+
+python:
+
+  install:
+
+  - requirements: docs/requirements.txt
