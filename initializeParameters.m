@@ -6,16 +6,16 @@ function params = initializeParameters()
 
 %% Flags
 params.video = false;
-params.guywires = false;
+params.guywires = true;
 params.secondOrder = false;
 params.linearPY = true;
-params.irregular = true;
+params.irregular = false;
 
 %% Main Parameters
 params.g = 9.81;            % gravity [m/s^2]
 params.ramp_duration = 20;  % Duration of force linear ramp in seconds
-params.dt = 0.02;           % time step [s]
-params.t_total = 60;       % total simulation time [s]
+params.dt = 0.01;           % time step [s]
+params.t_total = 200;       % total simulation time [s]
 params.nSteps = round(params.t_total / params.dt);
 
 %% Section & Tip Properties
@@ -27,8 +27,8 @@ params.F_hub_freq = 0.8;    % oscillatory tip load frequency [rad/s]
 
 %% Wave Kinematics
 params.gammaJ = 3.3;        % JONSWAP peak enhancement factor
-params.H_wave = 4;       % wave height [m]
-params.T_wave = 5;         % wave period [s]
+params.H_wave = 5;       % wave height [m]
+params.T_wave = 10;         % wave period [s]
 params.h = 23;              % [m], water depth
 params.waterDepth = params.h; % alias for water depth [m]
 params.rho_w = 1025;    % water density [kg/m^3]
