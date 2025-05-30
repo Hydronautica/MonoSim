@@ -1,4 +1,4 @@
-function [FHyd, FHyd_history] = computeMorisonForces(U, Udot, time, elemZ, params, FHyd_history)
+function [FHyd, FHyd_history] = computeMorisonForces(U, Udot, time, elemZ, params, FHyd_history, waveVel, waveAcc)
 % COMPUTEMORISONFORCES Computes hydrodynamic forces using Morison equation
 %
 % Inputs:
@@ -8,6 +8,8 @@ function [FHyd, FHyd_history] = computeMorisonForces(U, Udot, time, elemZ, param
 %   elemZ        - Z-coordinates of nodes
 %   params       - Structure containing simulation parameters
 %   FHyd_history - History of hydrodynamic forces (for updating)
+%   waveVel      - Pre-computed wave velocities at current time step
+%   waveAcc      - Pre-computed wave accelerations at current time step
 %
 % Outputs:
 %   FHyd         - Current hydrodynamic force vector
@@ -22,21 +24,6 @@ D_outer2 = params.D_outer2;
 sectionCutOff = params.sectionCutOff;
 h = params.h;
 Le = params.Le;
-Nfreq = params.Nfreq;
-omegaVec = params.omegaVec;
-A_m = params.A_m;
-phiRand = params.phiRand;
-k_m_vec = params.k_m_vec;
-
-% Check if eta2 exists in params, otherwise set to 0
-if isfield(params, 'eta2')
-    eta2 = params.eta2;
-else
-    eta2 = 0;
-end
-
-secondOrder = params.secondOrder;
-irregular = params.irregular;
 step = params.step;
 
 % Initialize force vector
@@ -58,40 +45,14 @@ for j = 1:length(elemZ)
         D = D_outer2;
     end
     
-    % Calculate wave kinematics at node position
-    if irregular
-        % First-order irregular wave kinematics
-        u = 0;
-        udot = 0;
-        for m = 1:Nfreq
-            k_m = k_m_vec(m);
-            omega_m = omegaVec(m);
-            A = A_m(m);
-            phi = phiRand(m);
-            
-            % Calculate wave number and frequency components
-            u = u + A * omega_m * cosh(k_m*(z+h))/sinh(k_m*h) * cos(-omega_m*time + phi);
-            udot = udot - A * omega_m^2 * cosh(k_m*(z+h))/sinh(k_m*h) * sin(-omega_m*time + phi);
-        end
-        
-        % Add second-order components if enabled
-        if secondOrder
-            % Get second-order velocity and acceleration
-            u2 = secondOrderVelocity(time, z, params);
-            udot2 = secondOrderAcceleration(time, z, params);
-            
-            % Add to first-order components
-            u = u + u2;
-            udot = udot + udot2;
-        end
-    else
-        % Regular wave kinematics (not implemented in this version)
-        u = 0;
-        udot = 0;
-    end
+    % Get horizontal DOF index
+    dof_j = 2*(j-1) + 1;  % Horizontal DOF
+    
+    % Get wave kinematics from pre-computed arrays
+    u = waveVel(dof_j);
+    udot = waveAcc(dof_j);
     
     % Get structural velocity at node
-    dof_j = 2*(j-1) + 1;  % Horizontal DOF
     Udot_j = Udot(dof_j);
     
     % Calculate relative velocity
@@ -113,84 +74,4 @@ for j = 1:length(elemZ)
     end
 end
 
-end
-
-% Helper function for second-order velocity
-function u2 = secondOrderVelocity(time, z, params)
-    % Extract parameters
-    h = params.h;
-    Nfreq = params.Nfreq;
-    omegaVec = params.omegaVec;
-    A_m = params.A_m;
-    phiRand = params.phiRand;
-    k_m_vec = params.k_m_vec;
-    
-    u2 = 0;
-    for m = 1:Nfreq
-        for n = 1:Nfreq
-            % Calculate B+ and B- coefficients
-            Bplus = computeBplus(m, n, k_m_vec, omegaVec, h);
-            Bminus = computeBminus(m, n, k_m_vec, omegaVec, h);
-            
-            % Sum and difference of frequencies and wave numbers
-            omega_p = omegaVec(m) + omegaVec(n);
-            omega_m = omegaVec(m) - omegaVec(n);
-            k_p = k_m_vec(m) + k_m_vec(n);
-            k_m = abs(k_m_vec(m) - k_m_vec(n));
-            
-            % Phase angles
-            phi_m = phiRand(m);
-            phi_n = phiRand(n);
-            
-            % B+ term (sum frequency)
-            u2 = u2 + 0.5 * A_m(m) * A_m(n) * Bplus * omega_p * ...
-                 cosh(k_p*(z+h))/sinh(k_p*h) * ...
-                 cos(-omega_p*time + phi_m + phi_n);
-            
-            % B- term (difference frequency)
-            u2 = u2 + 0.5 * A_m(m) * A_m(n) * Bminus * omega_m * ...
-                 cosh(k_m*(z+h))/sinh(k_m*h) * ...
-                 cos(-omega_m*time + phi_m - phi_n);
-        end
-    end
-end
-
-% Helper function for second-order acceleration
-function udot2 = secondOrderAcceleration(time, z, params)
-    % Extract parameters
-    h = params.h;
-    Nfreq = params.Nfreq;
-    omegaVec = params.omegaVec;
-    A_m = params.A_m;
-    phiRand = params.phiRand;
-    k_m_vec = params.k_m_vec;
-    
-    udot2 = 0;
-    for m = 1:Nfreq
-        for n = 1:Nfreq
-            % Calculate B+ and B- coefficients
-            Bplus = computeBplus(m, n, k_m_vec, omegaVec, h);
-            Bminus = computeBminus(m, n, k_m_vec, omegaVec, h);
-            
-            % Sum and difference of frequencies and wave numbers
-            omega_p = omegaVec(m) + omegaVec(n);
-            omega_m = omegaVec(m) - omegaVec(n);
-            k_p = k_m_vec(m) + k_m_vec(n);
-            k_m = abs(k_m_vec(m) - k_m_vec(n));
-            
-            % Phase angles
-            phi_m = phiRand(m);
-            phi_n = phiRand(n);
-            
-            % B+ term (sum frequency)
-            udot2 = udot2 + 0.5 * A_m(m) * A_m(n) * Bplus * omega_p^2 * ...
-                    cosh(k_p*(z+h))/sinh(k_p*h) * ...
-                    sin(-omega_p*time + phi_m + phi_n);
-            
-            % B- term (difference frequency)
-            udot2 = udot2 + 0.5 * A_m(m) * A_m(n) * Bminus * omega_m^2 * ...
-                    cosh(k_m*(z+h))/sinh(k_m*h) * ...
-                    sin(-omega_m*time + phi_m - phi_n);
-        end
-    end
 end

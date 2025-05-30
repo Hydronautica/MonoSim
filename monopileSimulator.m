@@ -32,12 +32,16 @@ addpath('FEM', 'Integration', 'soil', 'hydro', 'aero');
 %% Initialize soil state variables
 [soilStates, thetaStates] = initializeSoilStates(params, nNode);
 
+%% Pre-compute wave kinematics for all time steps
+disp('Pre-computing wave kinematics...');
+[waveVel, waveAcc, eta2_history] = precomputeWaveKinematics(time, elemZ, params);
+
 %% Compute initial acceleration
 % Set step counter in params for force history tracking
 params.step = 1;
 
 % Compute initial forces
-[F0, FHyd_history] = computeMorisonForces(U(:,1), V(:,1), time(1), elemZ, params, FHyd_history);
+[F0, FHyd_history] = computeMorisonForces(waveVel(:,1), waveAcc(:,1), time(1), elemZ, params, FHyd_history, waveVel(:,1), waveAcc(:,1));
 [Fm_air, FAero_history] = computeAerodynamicForces(time(1), elemZ, params, FAero_history);
 F_const = computeConstantForces(params, nDOF, time(1));
 [F_py, soilStates, thetaStates] = computeSoilForces(U(:,1), V(:,1), elemZ, params, soilStates, thetaStates);
@@ -81,15 +85,13 @@ for i = 1:params.nSteps
     % Get current ramp factor
     ramp_i = ramp(i+1);
     
-    % Calculate second-order wave elevation if needed
+    % Update eta2 in params from pre-computed values
     if params.secondOrder && params.irregular
-        eta2 = secondOrderElevation(time(i+1), params);
-        eta2_history(i+1) = eta2;
-        params.eta2 = eta2;
+        params.eta2 = eta2_history(i+1);
     end
     
-    % Get external forces at current time step
-    [F_hydro, FHyd_history] = computeMorisonForces(U(:,i), V(:,i), time(i+1), elemZ, params, FHyd_history);
+    % Get external forces at current time step using pre-computed wave kinematics
+    [F_hydro, FHyd_history] = computeMorisonForces(waveVel(:,i), waveAcc(:,i), time(i+1), elemZ, params, FHyd_history, waveVel(:,i+1), waveAcc(:,i+1));
     [Fm_air, FAero_history] = computeAerodynamicForces(time(i+1), elemZ, params, FAero_history);
     F_const = computeConstantForces(params, nDOF, time(i+1));
     
