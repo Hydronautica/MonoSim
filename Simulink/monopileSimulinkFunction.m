@@ -68,12 +68,11 @@ if isempty(initialized)
     F_guy = zeros(nDOF, 1);
     if params.guywires
         F_guy = computeGuyWireForces(U(:,1), V(:,1), params);
-        F_py = F_py + F_guy;
     end
     
     % Apply ramp to initial forces
     ramp_i = ramp(1);
-    F0 = (F0 + F_const + Fm_air + F_py) * ramp_i;
+    F0 =  (F0 + F_const + Fm_air + F_py + F_guy) * ramp_i;
     
     % Compute initial acceleration
     Aacc(free, 1) = M(free, free) \ (F0(free) - C(free, free) * V(free, 1) - K(free, free) * U(free, 1));

@@ -9,12 +9,12 @@ params.video = false;
 params.guywires = true;
 params.secondOrder = false;
 params.linearPY = true;
-params.irregular = false;
+params.irregular = true;
 
 %% Main Parameters
 params.g = 9.81;            % gravity [m/s^2]
 params.ramp_duration = 20;  % Duration of force linear ramp in seconds
-params.dt = 0.01;           % time step [s]
+params.dt = 0.005;           % time step [s]
 params.t_total = 200;       % total simulation time [s]
 params.nSteps = round(params.t_total / params.dt);
 
@@ -22,8 +22,8 @@ params.nSteps = round(params.t_total / params.dt);
 params.m_hub = 1;           % tip mass [kg]
 params.I_hub = 1e1;         % tip rotational inertia [kg·m^2]
 params.F_hub = 0;         % constant horizontal tip load [N]
-params.F_hub_oscill = 0;    % oscillatory tip load amplitude [N]
-params.F_hub_freq = 0.8;    % oscillatory tip load frequency [rad/s]
+params.F_hub_oscill = 1e1;    % oscillatory tip load amplitude [N]
+params.F_hub_freq = (2*pi/10);    % oscillatory tip load frequency [rad/s]
 
 %% Wave Kinematics
 params.gammaJ = 3.3;        % JONSWAP peak enhancement factor
@@ -34,7 +34,7 @@ params.waterDepth = params.h; % alias for water depth [m]
 params.rho_w = 1025;    % water density [kg/m^3]
 params.Cd = 1.0;           % Morison drag coefficient
 params.Cm = 2.0;           % Morison inertia coefficient
-params.Nfreq = 16;         % number of spectral components
+params.Nfreq = 64;         % number of spectral components
 params.T_min = 4;           % Low Period Cutoff
 params.T_max = 30;          % High Period Cutoff
 

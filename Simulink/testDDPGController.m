@@ -1,4 +1,5 @@
 function testDDPGController()
+rng(30)
 % TESTDDPGCONTROLLER Test the trained DDPG agent for monopile control
 %
 % This function loads a trained DDPG agent and tests its performance
@@ -13,13 +14,15 @@ catch
 end
 
 %% Test Parameters
-testDuration = 20; % seconds
+testDuration = 60; % seconds
 timeStep = 0.01; % seconds
 nSteps = round(testDuration / timeStep);
 
 % Initialize arrays for logging
 time = (0:nSteps-1) * timeStep;
 tip_displacement = zeros(nSteps, 1);
+tip_velocity = zeros(nSteps, 1);
+
 wave_elevation = zeros(nSteps, 1);
 control_actions = zeros(nSteps, 2);
 guy_wire_forces = zeros(nSteps, 1);
@@ -38,14 +41,16 @@ for step = 1:nSteps
     % Get current observation
     if step == 1
         % Initialize with zero displacement
-        [tip_disp, ~, ~, ~, guy_forces] = monopileSimulinkFunction(0, 0);
+        [tip_disp, tip_vel, ~, ~, guy_forces] = monopileSimulinkFunction(0, 0);
     else
         tip_disp = tip_displacement(step-1);
+        tip_vel = tip_velocity(step-1);
+
         guy_forces = guy_wire_forces(step-1);
     end
     
     % Prepare current observation for MLP (no sequence needed)
-    currentObs = [tip_disp; wave_elevation(step)];
+    currentObs = [tip_disp;tip_vel; wave_elevation(step)];
     
     % Get action from agent (MLP can act immediately)
     action = getAction(agent, currentObs);
@@ -94,7 +99,7 @@ for step = 1:nSteps
     guy_wire_forces(step) = guy_forces;
     
     % Calculate reward
-    rewards(step) = -abs(tip_disp) - 0.1*(abs(action(1)) + abs(action(2)));
+    rewards(step) = -abs(tip_disp) - 0.5*(abs(action(1)) + abs(action(2)));
     
     % Progress indicator
     if mod(step, 1000) == 0
@@ -112,7 +117,7 @@ fprintf('Average reward: %.2f\n', mean(rewards));
 fprintf('Control effort (RMS): %.4f m\n', rms(sqrt(sum(control_actions.^2, 2))));
 
 %% Visualization
-createPlots(time, tip_displacement, wave_elevation, control_actions, guy_wire_forces, rewards);
+createPlots(time, tip_displacement, wave_elevation, control_actions, guy_wire_forces, rewards,testDuration);
 
 %% Save Results
 results = struct();
@@ -147,7 +152,7 @@ wave_elev = (H_s/2 * sin(omega_p * t + phases(1)));
 
 end
 
-function createPlots(time, displacement, wave_elevation, control_actions, guy_wire_forces, rewards)
+function createPlots(time, displacement, wave_elevation, control_actions, guy_wire_forces, rewards,testDuration)
 % Create comprehensive plots of DDPG agent performance
 
 figure('Position', [100, 100, 1200, 800]);

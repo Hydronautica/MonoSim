@@ -1,18 +1,29 @@
-function trainDDPGController()
+function trainDDPGController(agent)
+% Set random seed for reproducibility
+seed = 31;
+rng(seed, 'twister');  % Set MATLAB's random number generator
+
+% For deep learning reproducibility (if using Deep Learning Toolbox)
+if exist('rng', 'builtin')
+    rng(seed, 'twister');
+end
+
+% Set environment variable for additional reproducibility
+setenv('PYTHONSEED', num2str(seed));
 % TRAINDDPGCONTROLLER Train DDPG agent with LSTM networks for monopile control
 %
 % This function implements a Deep Deterministic Policy Gradient (DDPG) agent
 % with LSTM networks to learn optimal guy wire control for minimizing tower
 % top displacement. The agent observes tower displacement and wave elevation.
 
-%% Environment Setup
+% Environment Setup
 % Define observation and action specifications
-obsInfo = rlNumericSpec([2 1], 'LowerLimit', [-inf; -inf], 'UpperLimit', [inf; inf]);
+obsInfo = rlNumericSpec([3 1], 'LowerLimit', [-inf; -inf; -inf], 'UpperLimit', [inf; inf; inf]);
 obsInfo.Name = 'observations';
-obsInfo.Description = 'Tower displacement and wave elevation';
+obsInfo.Description = 'Tower displacement tower velocity and wave elevation';
 
 % Action specification (guy wire control displacements)
-actInfo = rlNumericSpec([2 1], 'LowerLimit', [-0.002; -0.002], 'UpperLimit', [0.002; 0.002]);
+actInfo = rlNumericSpec([2 1], 'LowerLimit', [-0.02; -0.02], 'UpperLimit', [0.02; 0.02]);
 actInfo.Name = 'guy_wire_controls';
 actInfo.Description = 'Control displacements for guy wires 1 and 2 [m]';
 
@@ -25,39 +36,40 @@ sequenceLength = 100;
 hiddenSize = 64;
 learningRate = 1e-4;
 
-% Create critic network with LSTM
-criticNetwork = createCriticLSTMNetwork(obsInfo, actInfo, hiddenSize, sequenceLength);
-critic = rlQValueFunction(criticNetwork, obsInfo, actInfo, ...
-    'ObservationInputNames', 'obs', 'ActionInputNames', 'act');
-
-% Create actor network with LSTM
-actorNetwork = createActorLSTMNetwork(obsInfo, actInfo, hiddenSize, sequenceLength);
-actor = rlContinuousDeterministicActor(actorNetwork, obsInfo, actInfo, ...
-    'ObservationInputNames', 'obs');
+% % Create critic network with LSTM
+% criticNetwork = createCriticLSTMNetwork(obsInfo, actInfo, hiddenSize, sequenceLength);
+% critic = rlQValueFunction(criticNetwork, obsInfo, actInfo, ...
+%     'ObservationInputNames', 'obs', 'ActionInputNames', 'act');
+% 
+% % Create actor network with LSTM
+% actorNetwork = createActorLSTMNetwork(obsInfo, actInfo, hiddenSize, sequenceLength);
+% actor = rlContinuousDeterministicActor(actorNetwork, obsInfo, actInfo, ...
+%     'ObservationInputNames', 'obs');
 
 % DDPG agent options
-agentOptions = rlDDPGAgentOptions(...
-    'SampleTime', 0.01, ...
-    'CriticOptimizerOptions', rlOptimizerOptions('LearnRate', learningRate), ...
-    'ActorOptimizerOptions', rlOptimizerOptions('LearnRate', learningRate/10), ...
-    'ExperienceBufferLength', 1e6, ...
-    'MiniBatchSize', 128, ...
-    'NumStepsToLookAhead', 10, ...
-    'TargetSmoothFactor', 1e-3 ...
-    );
+% agentOptions = rlDDPGAgentOptions(...
+%     'SampleTime', 0.01, ...
+%     'CriticOptimizerOptions', rlOptimizerOptions('LearnRate', 1e-4, 'GradientThreshold', 1), ...
+%     'ActorOptimizerOptions', rlOptimizerOptions('LearnRate', 1e-5, 'GradientThreshold', 1), ...
+%     'ExperienceBufferLength', 1e6, ...
+%     'MiniBatchSize', 64, ...
+%     'NumStepsToLookAhead', 1, ...
+%     'TargetSmoothFactor', 1e-3, ...
+%     'SequenceLength', sequenceLength ...  % Add this line for LSTM networks
+% );
 
 % Create DDPG agent
-agent = rlDDPGAgent(actor, critic, agentOptions);
+%agent = rlDDPGAgent(actor, critic, agentOptions);
 
 %% Training Options
 trainOpts = rlTrainingOptions(...
-    'MaxEpisodes', 100, ...
-    'MaxStepsPerEpisode', 2000, ...
+    'MaxEpisodes', 1000, ...
+    'MaxStepsPerEpisode', 200, ...
     'ScoreAveragingWindowLength', 50, ...
     'Verbose', true, ...
     'Plots', 'training-progress', ...
     'StopTrainingCriteria', 'AverageReward', ...
-    'StopTrainingValue', -0.1, ...
+    'StopTrainingValue', -0.01, ...
     'SaveAgentCriteria', 'EpisodeReward', ...
     'SaveAgentValue', -100);
 
@@ -72,71 +84,50 @@ fprintf('Training completed. Agent saved to trainedDDPGAgent.mat\n');
 end
 
 function criticNetwork = createCriticLSTMNetwork(obsInfo, actInfo, hiddenSize, sequenceLength)
-% Create critic network with MLP layers (no LSTM)
+% Create critic network with LSTM for temporal understanding
+% Input dimension is observation + action concatenated
+inputDim = obsInfo.Dimension(1) + actInfo.Dimension(1);
 
-% Observation path
-obsPath = [
-    featureInputLayer(obsInfo.Dimension(1), 'Name', 'obs')
-    fullyConnectedLayer(hiddenSize, 'Name', 'fc_obs1')
-    reluLayer('Name', 'relu_obs1')
-    fullyConnectedLayer(32, 'Name', 'fc_obs2')
-    reluLayer('Name', 'relu_obs2')
-];
-
-% Action path
-actionPath = [
-    featureInputLayer(actInfo.Dimension(1), 'Name', 'act')
-    fullyConnectedLayer(32, 'Name', 'fc_act')
-    reluLayer('Name', 'relu_act')
-];
-
-% Common path (combine observation and action)
-commonPath = [
-    additionLayer(2, 'Name', 'add')
-    fullyConnectedLayer(64, 'Name', 'fc_common1')
-    reluLayer('Name', 'relu_common1')
-    fullyConnectedLayer(32, 'Name', 'fc_common2')
-    reluLayer('Name', 'relu_common2')
+criticNetwork = [
+    sequenceInputLayer(inputDim, 'Name', 'obs_act')
+    lstmLayer(hiddenSize, 'OutputMode', 'sequence', 'Name', 'lstm1')
+    dropoutLayer(0.2, 'Name', 'dropout1')
+    lstmLayer(32, 'OutputMode', 'sequence', 'Name', 'lstm2')  % Output only last time step
+    fullyConnectedLayer(16, 'Name', 'fc1')
+    reluLayer('Name', 'relu1')
     fullyConnectedLayer(1, 'Name', 'output')
 ];
-
-% Create layer graph
-criticNetwork = layerGraph(obsPath);
-criticNetwork = addLayers(criticNetwork, actionPath);
-criticNetwork = addLayers(criticNetwork, commonPath);
-
-% Connect layers
-criticNetwork = connectLayers(criticNetwork, 'relu_obs2', 'add/in1');
-criticNetwork = connectLayers(criticNetwork, 'relu_act', 'add/in2');
-
 end
 
 function actorNetwork = createActorLSTMNetwork(obsInfo, actInfo, hiddenSize, sequenceLength)
-% Create actor network with MLP layers (no LSTM)
+% Create actor network with LSTM for temporal understanding
 
 actorNetwork = [
-    featureInputLayer(obsInfo.Dimension(1), 'Name', 'obs')
-    fullyConnectedLayer(hiddenSize, 'Name', 'fc1')
+    sequenceInputLayer(obsInfo.Dimension(1), 'Name', 'obs')
+    lstmLayer(hiddenSize, 'OutputMode', 'sequence', 'Name', 'lstm1')
+    dropoutLayer(0.2, 'Name', 'dropout1')
+    fullyConnectedLayer(32, 'Name', 'fc1')
     reluLayer('Name', 'relu1')
-    fullyConnectedLayer(32, 'Name', 'fc2')
+    fullyConnectedLayer(16, 'Name', 'fc2')
     reluLayer('Name', 'relu2')
-    fullyConnectedLayer(16, 'Name', 'fc3')
-    reluLayer('Name', 'relu3')
     fullyConnectedLayer(actInfo.Dimension(1), 'Name', 'output')
     tanhLayer('Name', 'tanh')
-    scalingLayer('Name', 'scaling', 'Scale', 0.5) % Scale to [-0.5, 0.5] range
+    scalingLayer('Name', 'scaling', 'Scale', 0.5)
 ];
-
 end
 
     % Nested step function for monopile environment
     function [nextObs, reward, isDone, loggedSignals] = MonopileStepFcn(action, loggedSignals)
-        persistent simData stepCount
+        persistent prevAction prevDisplacement actionHistory stepCount
         
-        if isempty(stepCount)
+        if isempty(prevAction)
+            prevAction = [0; 0];
+            prevDisplacement = 0;
+            actionHistory = zeros(10, 2); % Store last 10 actions
             stepCount = 0;
         end
         
+        % Increment step counter
         stepCount = stepCount + 1;
         
         % Extract guy wire controls from action
@@ -151,14 +142,33 @@ end
         wave_elevation = sin(2*pi*stepCount*0.01/10) * 2.5; % Simplified sinusoidal wave
         
         % Prepare observations
-        nextObs = [tip_displacement; wave_elevation];
+        nextObs = [tip_displacement; tip_velocity; wave_elevation];
         
-        % Calculate reward (negative displacement to minimize it)
-        %reward = -abs(tip_displacement) - 0.1*(abs(deltaL_1) + abs(deltaL_2)); % Penalize large control actions
-        reward = -abs(tip_displacement)^2; % Penalize large control actions
+        % Enhanced reward function
+        displacement_penalty = -abs(tip_displacement);
+        control_effort_penalty = -0.1 * (abs(action(1)) + abs(action(2)));
+        
+        % Penalize constant actions (encourage dynamic response)
+        action_change = abs(action - prevAction);
+        stagnation_penalty = -0.05 * exp(-10 * sum(action_change)); % Exponential penalty for no change
+        
+        % Reward for reducing displacement rate (derivative control)
+        displacement_rate = abs(tip_displacement - prevDisplacement);
+        rate_reward = 0.1 * max(0, 0.1 - displacement_rate); % Reward for reducing rate
+        
+        % Penalize oscillatory control (too much action variation)
+        actionHistory = [actionHistory(2:end, :); action'];
+        action_variance = var(actionHistory);
+        oscillation_penalty = -0.02 * sum(action_variance);
+        
+        reward = displacement_penalty + control_effort_penalty + stagnation_penalty + rate_reward + oscillation_penalty;
+        
+        % Update history
+        prevAction = action;
+        prevDisplacement = tip_displacement;
 
         % Episode termination conditions
-        isDone = stepCount >= 2000 ; % End if too many steps or excessive displacement
+        isDone = stepCount >= 2000; % End if too many steps
         
         % Log signals for analysis
         loggedSignals.tip_displacement = tip_displacement;
@@ -169,17 +179,17 @@ end
 
     % Nested reset function for monopile environment
     function [initialObs, loggedSignals] = MonopileResetFcn()
-        persistent stepCount
+        % Reset step counter
         stepCount = 0;
         
         % Reset the monopile simulation by calling it with zero inputs
-        [tip_displacement, ~, ~, ~, guy_wire_forces] = monopileSimulinkFunction(0, 0);
+        [tip_displacement, tip_velocity, ~, ~, guy_wire_forces] = monopileSimulinkFunction(0, 0);
         
         % Initial wave elevation
         wave_elevation = 0;
         
         % Initial observations
-        initialObs = [tip_displacement; wave_elevation];
+        initialObs = [tip_displacement; tip_velocity; wave_elevation];
         
         % Initialize logged signals
         loggedSignals = struct();
@@ -188,4 +198,5 @@ end
         loggedSignals.control_action = [0; 0];
         loggedSignals.reward = 0;
     end
+
 

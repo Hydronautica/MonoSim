@@ -50,7 +50,7 @@ for j = 1:length(elemZ)
     
     % Update history if provided
     if nargin > 3 && ~isempty(FAero_history)
-        %FAero_history(dof_j, step) = F_aero_j;
+        Aero_history(dof_j, step) = F_aero_j;
     end
 end
 
